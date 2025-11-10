@@ -12,7 +12,9 @@
 
 # NOPE #SBATCH --gres=gpu:2
 
-env_name="acl_ssl27"
+set -e
+
+env_name="acl-ssl"
 
 module load conda
 conda activate $env_name
