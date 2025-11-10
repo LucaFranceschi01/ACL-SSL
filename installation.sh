@@ -6,10 +6,11 @@ set -euo pipefail
 
 module load conda
 # module load cuda/11.8
-conda create -y -n acl_ssl24
-conda activate acl_ssl24
+conda create -y -n acl_ssl27
+conda activate acl_ssl27
 
-# conda install -y cudatoolkit=11.8
+conda install -y cudatoolkit
+# conda install -y -c nvidia cudatoolkit=11.8
 # conda install nvidia/label/cuda-11.8.0::cuda-nvrtc
 # conda install nvidia/label/cuda-11.8.0::cuda-libraries
 conda install -y -c conda-forge cudnn
@@ -22,3 +23,5 @@ pip install opencv-python==4.7.0.72
 pip install tqdm==4.65.0
 pip install scikit-learn==1.2.2
 pip install six==1.16.0
+
+conda export --file environment.yaml

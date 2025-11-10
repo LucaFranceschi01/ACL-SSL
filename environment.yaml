@@ -1,4 +1,4 @@
-name: acl_ssl24
+name: acl_ssl27
 channels:
   - conda-forge
   - bioconda
@@ -7,14 +7,13 @@ dependencies:
   - _openmp_mutex=4.5=2_gnu
   - bzip2=1.0.8=hda65f42_8
   - ca-certificates=2025.10.5=hbd8a1cb_0
-  - cuda-nvrtc=13.0.88=hecca717_0
-  - cuda-version=13.0=hc7b4dd1_3
-  - cudnn=9.15.0.58=h886f0b6_0
+  - cuda-version=11.8=h70ddcb2_3
+  - cudatoolkit=11.8.0=h4ba93d1_13
+  - cudnn=9.10.1.4=haad7af6_0
   - icu=75.1=he02047a_0
   - ld_impl_linux-64=2.44=h1aa0949_5
-  - libcublas=13.1.0.3=h676940d_0
-  - libcudnn=9.15.0.58=ha4b6413_0
-  - libcudnn-dev=9.15.0.58=h7bcfba5_0
+  - libcudnn=9.10.1.4=h7d33bf5_0
+  - libcudnn-dev=9.10.1.4=h0fdc2d1_0
   - libexpat=2.7.1=hecca717_0
   - libffi=3.5.2=h9ec8514_0
   - libgcc=15.2.0=h767d61c_7
@@ -30,7 +29,7 @@ dependencies:
   - libzlib=1.3.1=hb9d3cd8_2
   - ncurses=6.5=h2d0b736_3
   - openssl=3.5.4=h26f9b46_0
-  - pip=25.2=pyh8b19718_0
+  - pip=25.3=pyh8b19718_0
   - python=3.10.19=h3c07f61_2_cpython
   - readline=8.2=h8c095d6_2
   - setuptools=80.9.0=pyhff2d567_0
@@ -44,7 +43,6 @@ dependencies:
       - certifi==2025.10.5
       - charset-normalizer==3.4.4
       - cmake==4.1.2
-      - cuda-toolkit==13.0.1
       - filelock==3.20.0
       - fsspec==2025.10.0
       - google-auth==2.43.0
@@ -61,7 +59,6 @@ dependencies:
       - mpmath==1.3.0
       - networkx==3.4.2
       - numpy==1.24.1
-      - nvidia-cuda-nvrtc==13.0.88
       - oauthlib==3.3.1
       - opencv-python==4.7.0.72
       - packaging==25.0
@@ -92,4 +89,4 @@ dependencies:
       - typing-extensions==4.15.0
       - urllib3==2.5.0
       - werkzeug==3.1.3
-prefix: /data/upftfg27/lfranceschi/.conda/envs/acl_ssl24
+prefix: /data/upftfg27/lfranceschi/.conda/envs/acl_ssl27

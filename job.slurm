@@ -12,8 +12,12 @@
 
 # ###      #asdfasdf SBITCH --gres=gpu:2
 
+env_name="acl_ssl27"
+
 module load conda
-conda activate acl_ssl24
+conda activate $env_name
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DATA/.conda/envs/$env_name/lib
 
 rsync -avz --exclude-from=excluded-directories.txt ~/repos/ACL-SSL $SCRATCH
 
