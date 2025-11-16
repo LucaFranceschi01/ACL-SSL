@@ -63,9 +63,9 @@ def main(
         # exvggss_dataloader = torch.utils.data.DataLoader(exvggss_dataset, batch_size=1, shuffle=False, num_workers=1,
         #                                                  pin_memory=True, drop_last=False)
 
-        # exflickr_dataset = ExtendFlickrDataset(data_path_dict['flickr'], input_resolution=352)
-        # exflickr_dataloader = torch.utils.data.DataLoader(exflickr_dataset, batch_size=1, shuffle=False, num_workers=1,
-        #                                                   pin_memory=True, drop_last=False)
+        exflickr_dataset = ExtendFlickrDataset(data_path_dict['flickr'], input_resolution=352)
+        exflickr_dataloader = torch.utils.data.DataLoader(exflickr_dataset, batch_size=1, shuffle=False, num_workers=1,
+                                                          pin_memory=True, drop_last=False)
 
         flickr_dataset = FlickrDataset(data_path_dict['flickr'], 'flickr_test', is_train=False, input_resolution=352)
         flickr_dataloader = torch.utils.data.DataLoader(flickr_dataset, batch_size=1, shuffle=False, num_workers=1,
@@ -84,7 +84,7 @@ def main(
         #                                                 pin_memory=True, drop_last=False)
 
         # Evaluate
-        # eval_exflickr_agg(model, exflickr_dataloader, viz_dir_template.format('exflickr'))
+        eval_exflickr_agg(model, exflickr_dataloader, viz_dir_template.format('exflickr'))
         # eval_exvggss_agg(model, exvggss_dataloader, viz_dir_template.format('exvggss'))
         eval_flickr_agg(model, flickr_dataloader, viz_dir_template.format('flickr'), tensorboard_path=tensorboard_path)
         # eval_vggss_agg(model, vggss_dataloader, viz_dir_template.format('vggss'), tensorboard_path=tensorboard_path)
