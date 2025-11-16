@@ -59,9 +59,9 @@ def main(
         tensorboard_path = os.path.join(save_path, 'Train_record', model_exp_name)
 
         # Get dataloader
-        # exvggss_dataset = ExtendVGGSSDataset(data_path_dict['vggss'], input_resolution=352)
-        # exvggss_dataloader = torch.utils.data.DataLoader(exvggss_dataset, batch_size=1, shuffle=False, num_workers=1,
-        #                                                  pin_memory=True, drop_last=False)
+        exvggss_dataset = ExtendVGGSSDataset(data_path_dict['vggss'], input_resolution=352)
+        exvggss_dataloader = torch.utils.data.DataLoader(exvggss_dataset, batch_size=1, shuffle=False, num_workers=1,
+                                                         pin_memory=True, drop_last=False)
 
         exflickr_dataset = ExtendFlickrDataset(data_path_dict['flickr'], input_resolution=352)
         exflickr_dataloader = torch.utils.data.DataLoader(exflickr_dataset, batch_size=1, shuffle=False, num_workers=1,
@@ -71,9 +71,9 @@ def main(
         flickr_dataloader = torch.utils.data.DataLoader(flickr_dataset, batch_size=1, shuffle=False, num_workers=1,
                                                         pin_memory=True, drop_last=False)
 
-        # vggss_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test', is_train=False, input_resolution=352)
-        # vggss_dataloader = torch.utils.data.DataLoader(vggss_dataset, batch_size=1, shuffle=False, num_workers=1,
-        #                                                pin_memory=True, drop_last=False)
+        vggss_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test', is_train=False, input_resolution=352)
+        vggss_dataloader = torch.utils.data.DataLoader(vggss_dataset, batch_size=1, shuffle=False, num_workers=1,
+                                                       pin_memory=True, drop_last=False)
 
         # avss4_dataset = AVSBenchDataset(data_path_dict['avs'], 'avs1_s4_test', is_train=False, input_resolution=352)
         # avss4_dataloader = torch.utils.data.DataLoader(avss4_dataset, batch_size=5, shuffle=False, num_workers=1,
@@ -85,9 +85,9 @@ def main(
 
         # Evaluate
         eval_exflickr_agg(model, exflickr_dataloader, viz_dir_template.format('exflickr'))
-        # eval_exvggss_agg(model, exvggss_dataloader, viz_dir_template.format('exvggss'))
+        eval_exvggss_agg(model, exvggss_dataloader, viz_dir_template.format('exvggss'))
         eval_flickr_agg(model, flickr_dataloader, viz_dir_template.format('flickr'), tensorboard_path=tensorboard_path)
-        # eval_vggss_agg(model, vggss_dataloader, viz_dir_template.format('vggss'), tensorboard_path=tensorboard_path)
+        eval_vggss_agg(model, vggss_dataloader, viz_dir_template.format('vggss'), tensorboard_path=tensorboard_path)
         # eval_avsbench_agg(model, avss4_dataloader, viz_dir_template.format('s4'), tensorboard_path=tensorboard_path)
         # eval_avsbench_agg(model, avsms3_dataloader, viz_dir_template.format('ms3'), tensorboard_path=tensorboard_path)
 
