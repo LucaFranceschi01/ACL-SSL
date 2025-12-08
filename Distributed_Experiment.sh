@@ -8,8 +8,7 @@ Train_ACL.py \
 --model_name ACL_ViT16 \
 --train_config Exp_ACL_v1 \
 --exp_name aclifa_2gpu \
---vggss_path {put dataset directory} \
---flickr_path {put dataset directory} \
---avs_path {put dataset directory} \
---save_path {put logging directory}
-
+--vggss_path $DATA/VGGSS \
+--flickr_path $DATA/Flickr \
+--avs_path $DATA/AVSBench/AVS1 \
+--save_path ""

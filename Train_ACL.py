@@ -24,7 +24,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 
 
-def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
+def main(model_name, model_path, exp_name, train_config_name, data_path_dict, save_path):
     """
     Main function for training an image compression model.
 
@@ -79,18 +79,24 @@ def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
 
     ''' Get model '''
     model_conf_file = f'./config/model/{model_name}.yaml'
-    model = getattr(import_module('modules.models'), config['model'])(model_conf_file, device)
+    model = getattr(import_module('modules.models'), config['model'])(model_conf_file, device, model_path)
     if rank == 0:
         print(f"Model '{model.__class__.__name__}' with configure file '{model_name}' is loaded")
         print(f"Loaded model details: {vars(model.args.model)}\n")
 
     training_consumed_sec = 0
-
+    print(args.train_data)
     ''' Get dataloader '''
     if args.train_data == 'vggss':
         # Get Train Dataloader (VGGSS)
         train_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_144k', is_train=True,
                                      input_resolution=args.input_resolution)
+    elif args.train_data == 'vggss_my_30':
+        # Get Train Dataloader (VGGSS)
+        print(data_path_dict['vggss'])
+        train_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test_100', is_train=True,
+                                     input_resolution=args.input_resolution)
+        print('this is the len of the train dataset ', len(train_dataset))
     elif args.train_data == 'vggss_heard':
         # Get Train Dataloader (VGGSS heard setup)
         train_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_heard', is_train=True,
@@ -106,11 +112,16 @@ def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, sampler=sampler,
                                                    num_workers=args.num_workers, pin_memory=False, drop_last=True,
                                                    worker_init_fn=seed_worker)
-
+    print('this is the len of the train dataloader ', len(train_dataloader))
     # Get Test Dataloader (VGGSS)
-    vggss_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test', is_train=False,
+    vggss_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test_30', is_train=False,
                                  input_resolution=args.input_resolution)
     vggss_dataloader = torch.utils.data.DataLoader(vggss_dataset, batch_size=1, shuffle=False, num_workers=1,
+                                                   pin_memory=False, drop_last=False)
+
+    train_dataset_for_testing_overfitting = VGGSSDataset(data_path_dict['vggss'], 'vggss_test_100', is_train=False,
+                                     input_resolution=args.input_resolution)
+    vggss_dataloader_for_testing_overfitting = torch.utils.data.DataLoader(train_dataset_for_testing_overfitting, batch_size=1, shuffle=False, num_workers=1,
                                                    pin_memory=False, drop_last=False)
 
     if args.train_data == 'vggss_heard':
@@ -194,12 +205,15 @@ def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
         if rank == 0:
             train_start_time_per_epoch = time.time()
 
-        pbar = tqdm(train_dataloader, desc=f"Train Epoch {epoch}...", disable=(rank != 0))
+        pbar = tqdm(train_dataloader, desc=f"Train Epoch [{epoch}/{args.epoch}]", disable=(rank != 0))
         sampler.set_epoch(epoch) if use_ddp else None
         for step, data in enumerate(pbar):
+            print('one pass in this for loop over pbar')
             images, audios, labels = data['images'], data['audios'], data['labels']
 
-            images = images.half()
+            if USE_CUDA:
+                images = images.half()
+
             prompt_template, text_pos_at_prompt, prompt_length = get_prompt_template()
 
             with autocast_fn():
@@ -207,7 +221,10 @@ def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
                 placeholder_tokens = module.get_placeholder_token(prompt_template.replace('{}', ''))
                 placeholder_tokens = placeholder_tokens.repeat((train_dataloader.batch_size, 1))
                 audio_driven_embedding = module.encode_audio(audios.to(module.device), placeholder_tokens,
-                                                             text_pos_at_prompt, prompt_length).half()
+                                                             text_pos_at_prompt, prompt_length)
+
+                if USE_CUDA:
+                    audio_driven_embedding = audio_driven_embedding.half()
 
                 out_dict = module(images.to(module.device), audio_driven_embedding, 352)
 
@@ -246,7 +263,8 @@ def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
             if rank == 0:
                 pbar.set_description(f"Training Epoch {epoch}, Loss = {round(avr_loss, 5)}")
 
-        dist.barrier()
+        if use_ddp:
+            dist.barrier()
 
         if rank == 0:
             loss_per_epoch_dict = dict(
@@ -272,16 +290,18 @@ def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
                 else:
                     result_dict = eval_vggss_agg(module, vggss_dataloader, viz_dir_template.format('vggss'), epoch,
                                                  tensorboard_path=tensorboard_path)
-                    eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
-                                    tensorboard_path=tensorboard_path)
-                    eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
-                                      tensorboard_path=tensorboard_path)
-                    eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
-                                      tensorboard_path=tensorboard_path)
-                    eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
-                                     tensorboard_path=tensorboard_path)
-                    eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
-                                      tensorboard_path=tensorboard_path)
+                    eval_vggss_agg(module, vggss_dataloader_for_testing_overfitting, viz_dir_template.format('vggss_train_data'), epoch,
+                                                 tensorboard_path=tensorboard_path)
+                    # eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
+                    #                 tensorboard_path=tensorboard_path)
+                    # eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
+                    #                   tensorboard_path=tensorboard_path)
+                    # eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
+                    #                   tensorboard_path=tensorboard_path)
+                    # eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
+                    #                  tensorboard_path=tensorboard_path)
+                    # eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
+                    #                   tensorboard_path=tensorboard_path)
 
             save_dir = os.path.join(save_path, 'Train_record', model_exp_name, f'Param_{str(epoch)}.pth')
             module.save(save_dir)
@@ -303,8 +323,8 @@ def main(model_name, exp_name, train_config_name, data_path_dict, save_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--local-rank", type=int, default=0)
     parser.add_argument('--model_name', type=str, default='', help='Use model config file name')
+    parser.add_argument('--model_path', type=str, default='', help='Use model save path')
     parser.add_argument('--train_config', type=str, default='', help='Use train config file name')
     parser.add_argument('--exp_name', type=str, default='', help='postfix for save experiment')
     parser.add_argument('--save_path', type=str, default='', help='Save path for model and results')
@@ -314,9 +334,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    data_path = {'vggss': args.vggss_data_path,
-                 'flickr': args.flickr_data_path,
-                 'avs': args.avs_data_path}
+    data_path = {'vggss': args.vggss_path,
+                 'flickr': args.flickr_path,
+                 'avs': args.avs_path}
 
     # Run example
-    main(args.model_name, args.exp_name, args.train_config, data_path, args.save_path)
+    main(args.model_name, args.model_path, args.exp_name, args.train_config, data_path, args.save_path)
