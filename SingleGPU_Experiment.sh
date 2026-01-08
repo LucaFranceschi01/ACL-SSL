@@ -6,8 +6,9 @@ python Train_ACL.py \
 --model_name ACL_ViT16 \
 --model_path $DATA/pretrain \
 --exp_name aclifa_1gpu \
---train_config Exp_ACL_v1 \
+--train_config Exp_ACL_v2 \
 --vggss_path $DATA/VGGSS \
 --flickr_path $DATA/Flickr \
 --avs_path $DATA/AVSBench/AVS1 \
+--avs_path $DATA/vggsound \
 --save_path ""

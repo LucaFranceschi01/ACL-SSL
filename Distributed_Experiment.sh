@@ -11,4 +11,5 @@ Train_ACL.py \
 --vggss_path $DATA/VGGSS \
 --flickr_path $DATA/Flickr \
 --avs_path $DATA/AVSBench/AVS1 \
+--avs_path $DATA/vggsound \
 --save_path ""

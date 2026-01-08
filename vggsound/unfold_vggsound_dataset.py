@@ -16,6 +16,10 @@ if __name__ == '__main__':
 
     for i, v_name in enumerate(video_names):
         frames = os.listdir(os.path.join(src_data_dir, v_name))
+
+        if len(frames) == 0:
+            continue
+
         center_frame = frames[round(len(frames)/2)]
 
         if i%100 == 0:
