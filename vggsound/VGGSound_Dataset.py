@@ -34,18 +34,20 @@ class VGGSoundDataset(Dataset):
         ''' Audio files '''
         self.audio_path = os.path.join(data_path, 'audio')
         audio_files = set([fn.split('.wav')[0] for fn in os.listdir(self.audio_path) if fn.endswith('.wav')])
-
+        print(len(audio_files))
         ''' Image files '''
         self.image_path = os.path.join(data_path, 'frames')
         image_files = set([fn.split('.jpg')[0] for fn in os.listdir(self.image_path) if fn.endswith('.jpg')])
-
+        print(len(image_files))
         ''' Ground truth (Text label) '''
-        self.label_dict = {item[0]: item[1] for item in csv.reader(open(self.csv_dir))}
+        self.label_dict = {item[3]: item[1] for item in csv.reader(open(self.csv_dir))}
+        print(len(self.label_dict))
 
         ''' Available files'''
-        subset = set([item[0] for item in csv.reader(open(self.csv_dir))])
+        subset = set([item[3] for item in csv.reader(open(self.csv_dir))])
         self.file_list = list(audio_files.intersection(image_files).intersection(subset))
         self.file_list = sorted(self.file_list)
+        print(len(self.file_list))
 
         ''' Transform '''
         if is_train:

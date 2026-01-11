@@ -140,11 +140,11 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
     ''' Get dataloader '''
     # Get Train Dataloader (VGGSS)
     print(data_path_dict['vggsound'])
-    train_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_train_subset', is_train=True,
+    train_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_train', is_train=True,
                                     input_resolution=args.input_resolution)
     print('this is the len of the train dataset ', len(train_dataset))
 
-    validation_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_test_subset', is_train=False,
+    validation_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_test', is_train=False,
                                     input_resolution=args.input_resolution)
 
     ''' Create DistributedSampler '''
@@ -342,16 +342,16 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
                 else:
                     result_dict = eval_vggss_agg(module, vggss_dataloader, viz_dir_template.format('vggss'), epoch,
                                                  tensorboard_path=tensorboard_path)
-                    # eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
-                    #                 tensorboard_path=tensorboard_path)
-                    # eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
-                    #                   tensorboard_path=tensorboard_path)
-                    # eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
-                    #                   tensorboard_path=tensorboard_path)
-                    # eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
-                    #                  tensorboard_path=tensorboard_path)
-                    # eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
-                    #                   tensorboard_path=tensorboard_path)
+                    eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
+                                    tensorboard_path=tensorboard_path)
+                    eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
+                                      tensorboard_path=tensorboard_path)
+                    eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
+                                      tensorboard_path=tensorboard_path)
+                    eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
+                                     tensorboard_path=tensorboard_path)
+                    eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
+                                      tensorboard_path=tensorboard_path)
 
             save_dir = os.path.join(save_path, 'Train_record', model_exp_name, f'Param_{str(epoch)}.pth')
             module.save(save_dir)
@@ -388,6 +388,7 @@ if __name__ == "__main__":
     parser.add_argument('--flickr_path', type=str, default='', help='Flickr dataset directory')
     parser.add_argument('--avs_path', type=str, default='', help='AVSBench dataset directory')
     parser.add_argument('--vggsound_path', type=str, default='', help='VGGSound dataset directory')
+    parser.add_argument('--local-rank', type=str, default='', help='Rank for distributed train')
 
     args = parser.parse_args()
 

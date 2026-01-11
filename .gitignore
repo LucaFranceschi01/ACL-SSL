@@ -11,8 +11,8 @@
 **/.vscode
 
 pretrain
-Visual_results
-Train_record
+Visual_results*
+Train_record*
 
 **/AVS1
 
