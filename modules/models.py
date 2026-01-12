@@ -275,6 +275,28 @@ class ACL(nn.Module):
 
         return out_dict
 
+    def forward_for_validation(self, image: torch.Tensor, embedding: torch.Tensor, resolution: int = 224) -> dict:
+        """
+        Forward pass of ACL model especifically for the validation step during training.
+
+        Args:
+            image (torch.Tensor): Input image tensor.
+            embedding (torch.Tensor): Condition embedding tensor for grounder.
+            resolution (int): Resolution of the output tensor.
+
+        Returns:
+            dict: Output dictionary containing relevant tensors.
+        """
+        # seg_logit = self.forward_module(image, embedding, resolution)
+        v_f, v_i, p_area, n_area = self.encode_masked_vision(image, embedding)
+        out_dict = {'v_f': v_f, 'v_i': v_i, 'p_area': p_area, 'n_area': n_area}
+
+        seg_logit = self.forward_module(image, embedding, resolution)
+        heatmap = self.masker_i(seg_logit, infer=True)
+        out_dict['heatmap'] = heatmap
+
+        return out_dict
+
     def save(self, model_dir: str):
         """
         Save model parameters to a file. (Only trainable parts)

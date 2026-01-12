@@ -34,20 +34,19 @@ class VGGSoundDataset(Dataset):
         ''' Audio files '''
         self.audio_path = os.path.join(data_path, 'audio')
         audio_files = set([fn.split('.wav')[0] for fn in os.listdir(self.audio_path) if fn.endswith('.wav')])
-        print(len(audio_files))
+
         ''' Image files '''
         self.image_path = os.path.join(data_path, 'frames')
         image_files = set([fn.split('.jpg')[0] for fn in os.listdir(self.image_path) if fn.endswith('.jpg')])
-        print(len(image_files))
+
         ''' Ground truth (Text label) '''
         self.label_dict = {item[3]: item[1] for item in csv.reader(open(self.csv_dir))}
-        print(len(self.label_dict))
 
         ''' Available files'''
         subset = set([item[3] for item in csv.reader(open(self.csv_dir))])
         self.file_list = list(audio_files.intersection(image_files).intersection(subset))
         self.file_list = sorted(self.file_list)
-        print(len(self.file_list))
+        print(f'Intersection of {len(audio_files)}a, {len(image_files)}i and {len(subset)}l is {len(self.file_list)}')
 
         ''' Transform '''
         if is_train:
@@ -138,6 +137,10 @@ class VGGSoundDataset(Dataset):
         Returns:
             Dict[str, Union[torch.Tensor, torch.Tensor, Optinal[torch.Tensor], str, str]]: Data example
         """
+
+        if item >= len(self.file_list):
+            raise IndexError(f"Index {item} out of range for dataset of size {len(self.file_list)}")
+
         file_id = self.file_list[item]
 
         ''' Load data '''
