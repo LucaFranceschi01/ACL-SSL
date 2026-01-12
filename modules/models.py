@@ -13,7 +13,7 @@ from transformers import AutoTokenizer
 
 
 class ACL(nn.Module):
-    def __init__(self, conf_file: str, device: str):
+    def __init__(self, conf_file: str, device: str, model_path: str):
         """
         Audio-Grounded Contrastive Learning (ACL) model.
 
@@ -39,14 +39,17 @@ class ACL(nn.Module):
         self.audio_backbone = BEATs(cfg)
 
         # Text Tokenizer for placeholder prompt
-        self.tokenizer = AutoTokenizer.from_pretrained("CIDAS/clipseg-rd64-refined")
+        # self.tokenizer = AutoTokenizer.from_pretrained("CIDAS/clipseg-rd64-refined")
+        local_model_path = model_path + "/clipseg-rd64-refined-local"
+        self.tokenizer = AutoTokenizer.from_pretrained(local_model_path, use_fast=False)
 
         # Init audio projection layer
         self.audio_proj = FGAEmbedder(input_size=self.args.audio_proj.input_size * 3,
                                       output_size=self.args.audio_proj.output_size)
 
         # Init audio-visual grounder (Grounder: CLIPSeg)
-        self.av_grounder = CLIPSeg.from_pretrained("CIDAS/clipseg-rd64-refined")
+        # self.av_grounder = CLIPSeg.from_pretrained("CIDAS/clipseg-rd64-refined")
+        self.av_grounder = CLIPSeg.from_pretrained(local_model_path)
 
         # Init maskers
         self.masker_i = ImageMasker(10.0, 14.0, 1.0)
@@ -269,6 +272,28 @@ class ACL(nn.Module):
             seg_logit = self.forward_module(image, embedding, resolution)
             heatmap = self.masker_i(seg_logit, infer=True)
             out_dict = {'heatmap': heatmap}
+
+        return out_dict
+
+    def forward_for_validation(self, image: torch.Tensor, embedding: torch.Tensor, resolution: int = 224) -> dict:
+        """
+        Forward pass of ACL model especifically for the validation step during training.
+
+        Args:
+            image (torch.Tensor): Input image tensor.
+            embedding (torch.Tensor): Condition embedding tensor for grounder.
+            resolution (int): Resolution of the output tensor.
+
+        Returns:
+            dict: Output dictionary containing relevant tensors.
+        """
+        # seg_logit = self.forward_module(image, embedding, resolution)
+        v_f, v_i, p_area, n_area = self.encode_masked_vision(image, embedding)
+        out_dict = {'v_f': v_f, 'v_i': v_i, 'p_area': p_area, 'n_area': n_area}
+
+        seg_logit = self.forward_module(image, embedding, resolution)
+        heatmap = self.masker_i(seg_logit, infer=True)
+        out_dict['heatmap'] = heatmap
 
         return out_dict
 

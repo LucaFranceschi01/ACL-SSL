@@ -22,6 +22,93 @@ import Flickr.extend_eval_utils as exflickr_eval
 import AVSBench.eval_utils as avsbench_eval
 from typing import List, Optional, Tuple, Dict
 
+from importlib import import_module
+
+@torch.no_grad()
+def eval_vggsound_validation(
+    model: torch.nn.Module,
+    val_dataloader: DataLoader,
+    args,
+    result_dir: str,
+    epoch: Optional[int] = None,
+    tensorboard_path: Optional[str] = None,
+    rank = 0
+) -> Dict[str, float]:
+    '''
+    Evaluate provided model on VGG-Sound validation dataset.
+
+    Args:
+        model (torch.nn.Module): Sound localization model to evaluate.
+        val_dataloader (DataLoader): DataLoader for the test dataset.
+        result_dir (str): Directory to save the evaluation results.
+        epoch (int, optional): The current epoch number (default: None).
+        tensorboard_path (str, optional): Path to store TensorBoard logs. If None, TensorBoard logs won't be written.
+
+    Returns:
+        loss and other things
+    '''
+
+    loss_dict = {}
+    total_loss_per_epopch = 0.0
+    loss_add_count = 0.0
+
+    if tensorboard_path is not None and epoch is not None:
+        os.makedirs(tensorboard_path, exist_ok=True)
+        writer = SummaryWriter(tensorboard_path)
+
+    test_split = val_dataloader.dataset.split
+
+    # Get placeholder text
+    prompt_template, text_pos_at_prompt, prompt_length = get_prompt_template()
+
+    for step, data in enumerate(tqdm(val_dataloader, desc=f"Evaluate VGG-Sound({test_split}) dataset..."), disable=(rank != 0)):
+        images, audios, name = data['images'], data['audios'], data['ids']
+
+        # Inference
+        placeholder_tokens = model.get_placeholder_token(prompt_template.replace('{}', ''))
+        placeholder_tokens = placeholder_tokens.repeat((val_dataloader.batch_size, 1))
+        audio_driven_embedding = model.encode_audio(audios.to(model.device), placeholder_tokens, text_pos_at_prompt,
+                                                    prompt_length)
+
+        # Localization result
+        out_dict = model.forward_for_validation(images.to(model.device), audio_driven_embedding, 224)
+
+        loss_args = {'pred_emb': audio_driven_embedding, **out_dict}
+
+        for j, loss_name in enumerate(args.loss):
+            loss_dict[loss_name] = getattr(import_module('loss_utils'), loss_name)(**loss_args) * args.loss_w[j]
+
+        loss = torch.sum(torch.stack(list(loss_dict.values())))
+
+        if torch.isnan(loss) or torch.isinf(loss):
+            # skip if loss is nan
+            print('************Training stopped due to inf/nan loss.************')
+            raise ValueError('Loss is NaN or Inf!')
+
+        # Visual results
+        for j in range(val_dataloader.batch_size):
+            seg = out_dict['heatmap'][j:j+1]
+            seg_image = ((1 - seg.squeeze().detach().cpu().numpy()) * 255).astype(np.uint8)
+
+            os.makedirs(f'{result_dir}/heatmap', exist_ok=True)
+            cv2.imwrite(f'{result_dir}/heatmap/{name[j]}.jpg', seg_image)
+
+        total_loss_per_epopch += loss.item()
+        loss_add_count += 1.0
+
+    # Save result
+    os.makedirs(result_dir, exist_ok=True)
+    rst_path = os.path.join(f'{result_dir}/', 'test_rst.txt')
+    msg = ''
+
+    print(msg)
+    with open(rst_path, 'w') as fp_rst:
+        fp_rst.write(msg)
+
+    if tensorboard_path is not None and epoch is not None:
+        writer.close()
+
+    return total_loss_per_epopch / loss_add_count
 
 @torch.no_grad()
 def eval_vggss_agg(
@@ -32,7 +119,7 @@ def eval_vggss_agg(
     tensorboard_path: Optional[str] = None
 ) -> Dict[str, float]:
     '''
-    Evaluate provided  model on VGG-SS (VGG Sound Source) test dataset.
+    Evaluate provided model on VGG-SS (VGG Sound Source) test dataset.
 
     Args:
         model (torch.nn.Module): Sound localization model to evaluate.
@@ -99,6 +186,7 @@ def eval_vggss_agg(
             draw_overlaid(result_dir, original_image, heatmap_image, name[j])
 
     # Save result
+    os.makedirs(result_dir, exist_ok=True)
     rst_path = os.path.join(f'{result_dir}/', 'test_rst.txt')
     msg = ''
 
@@ -204,7 +292,8 @@ def eval_avsbench_agg(
             draw_overlaid(result_dir, original_image, heatmap_image, name[j])
 
     # Save result
-    rst_path = os.path.join(f'{result_dir}', 'test_rst.txt')
+    os.makedirs(result_dir, exist_ok=True)
+    rst_path = os.path.join(f'{result_dir}/', 'test_rst.txt')
     msg = ''
 
     # Final result
@@ -300,6 +389,7 @@ def eval_flickr_agg(
             draw_overlaid(result_dir, original_image, heatmap_image, name[j])
 
     # Save result
+    os.makedirs(result_dir, exist_ok=True)
     rst_path = os.path.join(f'{result_dir}/', 'test_rst.txt')
     msg = ''
 

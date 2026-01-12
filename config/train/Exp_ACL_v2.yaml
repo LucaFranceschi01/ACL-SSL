@@ -1,8 +1,8 @@
 model: ACL
 
 common:
-  train_data: vggss_my_30
-  epoch: 20
+  train_data: vggsound
+  epoch: 4
   batch_size: 8
   input_resolution: 352
   num_workers: 4

@@ -103,3 +103,114 @@ If you use this project, please cite this project as:
       year={2023},
 }
 ```
+
+
+## Current repo layout
+```
+.
+├── AVSBench
+│   ├── AVSBench_Dataset.py
+│   ├── README.md
+│   ├── eval_utils.py
+│   └── metadata
+│       ├── avs1_ms3_test.csv
+│       └── avs1_s4_test.csv
+├── Distributed_Experiment.sh
+├── Eval.py
+├── Flickr
+│   ├── Flickr_Dataset.py
+│   ├── README.md
+│   ├── audio  [4750 entries exceeds filelimit, not opening dir]
+│   ├── eval_utils.py
+│   ├── extend_eval_utils.py
+│   ├── frames  [4750 entries exceeds filelimit, not opening dir]
+│   ├── metadata
+│   │   ├── flickr_10k.csv
+│   │   ├── flickr_144k.csv
+│   │   ├── flickr_test.csv
+│   │   └── flickr_test_plus_silent.csv
+│   ├── test
+│   │   ├── Annotations  [5000 entries exceeds filelimit, not opening dir]
+│   │   ├── audio  [250 entries exceeds filelimit, not opening dir]
+│   │   └── frames  [250 entries exceeds filelimit, not opening dir]
+│   └── unfold_dataset.py
+├── README.md
+├── SingleGPU_Experiment.sh
+├── Test_PTModels.py
+├── Test_PTModels.sh
+├── Train_ACL.py
+├── VGGSS
+│   ├── README.md
+│   ├── VGGSS_Dataset.py
+│   ├── eval_utils.py
+│   ├── extend_eval_utils.py
+│   └── metadata
+│       ├── vggss.json
+│       ├── vggss_10k.csv
+│       ├── vggss_144k.csv
+│       ├── vggss_heard.csv
+│       ├── vggss_heard_test.csv
+│       ├── vggss_test.csv
+│       ├── vggss_test_plus_silent.csv
+│       └── vggss_unheard_test.csv
+├── Visual_results
+│   └── flickr
+│       └── ACL_ViT16_test_best_param
+│           └── epochbest
+│               ├── heatmap  [250 entries exceeds filelimit, not opening dir]
+│               ├── overall  [250 entries exceeds filelimit, not opening dir]
+│               ├── overlaid  [250 entries exceeds filelimit, not opening dir]
+│               └── test_rst.txt
+├── asset
+│   └── summary_wacv.png
+├── config
+│   ├── model
+│   │   └── ACL_ViT16.yaml
+│   └── train
+│       └── Exp_ACL_v1.yaml
+├── environment.yaml
+├── job.slurm
+├── loss_utils.py
+├── modules
+│   ├── AudioToken
+│   │   ├── AudioToken.py
+│   │   └── embedder.py
+│   ├── BEATs
+│   │   ├── BEATs.py
+│   │   ├── Tokenizers.py
+│   │   ├── backbone.py
+│   │   ├── modules.py
+│   │   └── quantizer.py
+│   ├── CLIPSeg
+│   │   └── clipseg_for_audio.py
+│   ├── FGA
+│   │   ├── atten.py
+│   │   └── fga_model.py
+│   ├── arg_utils.py
+│   ├── mask_utils.py
+│   └── models.py
+├── myutils
+│   ├── download_and_save_clipseg.py
+│   ├── excluded-directories.txt
+│   ├── installation.sh
+│   ├── remove_envs.sh
+│   └── requirements.txt
+├── pretrain
+│   ├── ACL_ViT16_test_best_param
+│   │   └── Param_best.pth
+│   ├── BEATs_iter3_plus_AS2M_finetuned_on_AS2M_cpt2.pt
+│   ├── README.md
+│   └── clipseg-rd64-refined-local
+│       ├── config.json
+│       ├── merges.txt
+│       ├── model.safetensors
+│       ├── pytorch_model.bin
+│       ├── special_tokens_map.json
+│       ├── tokenizer.json
+│       ├── tokenizer_config.json
+│       └── vocab.json
+├── util.py
+└── viz_utils.py
+
+33 directories, 71 files
+```

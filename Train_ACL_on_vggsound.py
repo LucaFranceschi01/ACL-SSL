@@ -13,10 +13,11 @@ from util import get_prompt_template, fix_seed, seed_worker
 from VGGSS.VGGSS_Dataset import VGGSSDataset, ExtendVGGSSDataset
 from Flickr.Flickr_Dataset import FlickrDataset, ExtendFlickrDataset
 from AVSBench.AVSBench_Dataset import AVSBenchDataset
+from vggsound.VGGSound_Dataset import VGGSoundDataset
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from importlib import import_module
-from Eval import eval_vggss_agg, eval_avsbench_agg, eval_flickr_agg, eval_exvggss_agg, eval_exflickr_agg
+from Eval import eval_vggss_agg, eval_avsbench_agg, eval_flickr_agg, eval_exvggss_agg, eval_exflickr_agg, eval_vggsound_validation
 from contextlib import nullcontext
 
 import torch.distributed as dist
@@ -24,60 +25,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 
 import numpy as np
-
-def compute_validation_loss(module, dataloader, args, autocast_fn):
-    """
-    Computes the average loss over a validation dataset.
-    """
-    # module.train(False) # already done before call
-
-    loss_dict = {}
-    loss_per_epoch_dict = {loss_name: 0.0 for loss_name in args.loss}
-    total_loss_per_epopch = 0.0
-    loss_add_count = 0.0
-
-    module.train(True)
-
-    # with torch.no_grad():  # already done before call
-    for step, data in enumerate(dataloader):
-        images, audios, labels = data['images'], data['audios'], data['labels']
-
-        if USE_CUDA:
-            images = images.half()
-
-        prompt_template, text_pos_at_prompt, prompt_length = get_prompt_template()
-
-        with autocast_fn():
-            # Train step
-            placeholder_tokens = module.get_placeholder_token(prompt_template.replace('{}', ''))
-            placeholder_tokens = placeholder_tokens.repeat((dataloader.batch_size, 1))
-            audio_driven_embedding = module.encode_audio(audios.to(module.device), placeholder_tokens,
-                                                            text_pos_at_prompt, prompt_length)
-
-            if USE_CUDA:
-                audio_driven_embedding = audio_driven_embedding.half()
-
-            out_dict = module(images.to(module.device), audio_driven_embedding, 352)
-
-            loss_args = {'pred_emb': audio_driven_embedding, **out_dict}
-
-            for j, loss_name in enumerate(args.loss):
-                loss_dict[loss_name] = getattr(import_module('loss_utils'), loss_name)(**loss_args) * args.loss_w[j]
-
-            loss = torch.sum(torch.stack(list(loss_dict.values())))
-
-            if torch.isnan(loss) or torch.isinf(loss):
-                # skip if loss is nan
-                print('************Training stopped due to inf/nan loss.************')
-                sys.exit(-1)
-
-        total_loss_per_epopch += loss.item()
-        loss_add_count += 1.0
-
-    module.train(False)
-
-    return total_loss_per_epopch / loss_add_count
-
 
 def main(model_name, model_path, exp_name, train_config_name, data_path_dict, save_path):
     """
@@ -135,25 +82,15 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
 
     training_consumed_sec = 0
     print(args.train_data)
+
     ''' Get dataloader '''
-    if args.train_data == 'vggss':
-        # Get Train Dataloader (VGGSS)
-        train_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_144k', is_train=True,
-                                     input_resolution=args.input_resolution)
-    elif args.train_data == 'vggss_my_30':
-        # Get Train Dataloader (VGGSS)
-        print(data_path_dict['vggss'])
-        train_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test_100', is_train=True,
-                                     input_resolution=args.input_resolution)
-        print('this is the len of the train dataset ', len(train_dataset))
-    elif args.train_data == 'vggss_heard':
-        # Get Train Dataloader (VGGSS heard setup)
-        train_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_heard', is_train=True,
-                                     input_resolution=args.input_resolution)
-    else:
-        # Get Train Dataloader (Flickr)
-        train_dataset = FlickrDataset(data_path_dict['flickr'], 'flickr_144k', is_train=True,
-                                      input_resolution=args.input_resolution)
+    # Get Train Dataloader (VGGSS)
+    print(data_path_dict['vggsound'])
+    train_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_train', is_train=True,
+                                    input_resolution=args.input_resolution)
+
+    validation_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_test', is_train=False,
+                                    input_resolution=args.input_resolution)
 
     ''' Create DistributedSampler '''
     sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True) if USE_DDP else None
@@ -161,16 +98,17 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, sampler=sampler,
                                                    num_workers=args.num_workers, pin_memory=False, drop_last=True,
                                                    worker_init_fn=seed_worker)
-    print('this is the len of the train dataloader ', len(train_dataloader))
+
+    sampler_validation = DistributedSampler(validation_dataset, num_replicas=world_size, rank=rank, shuffle=True) if USE_DDP else None
+
+    validation_dataloader = torch.utils.data.DataLoader(validation_dataset, batch_size=args.batch_size, sampler=sampler_validation,
+                                                   num_workers=args.num_workers, pin_memory=False, drop_last=True,
+                                                   worker_init_fn=seed_worker)
+
     # Get Test Dataloader (VGGSS)
-    vggss_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test_30', is_train=False,
+    vggss_dataset = VGGSSDataset(data_path_dict['vggss'], 'vggss_test', is_train=False,
                                  input_resolution=args.input_resolution)
     vggss_dataloader = torch.utils.data.DataLoader(vggss_dataset, batch_size=args.batch_size, shuffle=False, num_workers=1,
-                                                   pin_memory=False, drop_last=True)
-
-    train_dataset_for_testing_overfitting = VGGSSDataset(data_path_dict['vggss'], 'vggss_test_100', is_train=False,
-                                     input_resolution=args.input_resolution)
-    vggss_dataloader_for_testing_overfitting = torch.utils.data.DataLoader(train_dataset_for_testing_overfitting, batch_size=args.batch_size, shuffle=False, num_workers=1,
                                                    pin_memory=False, drop_last=True)
 
     if args.train_data == 'vggss_heard':
@@ -320,56 +258,57 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
         if USE_DDP:
             dist.barrier()
 
-        if rank == 0:
-            loss_per_epoch_dict = dict(
-                (loss_name, loss / loss_add_count) for loss_name, loss in loss_per_epoch_dict.items())
-            training_consumed_sec += (time.time() - train_start_time_per_epoch)
+        viz_dir_template = os.path.join(save_path, 'Visual_results', '{}', model_exp_name, f'epoch{epoch}')
 
-            writer.add_scalars('train/overall', {'loss': total_loss_per_epopch / loss_add_count}, epoch)
-            writer.add_scalars('train/loss', loss_per_epoch_dict, epoch)
-            for i, param in enumerate(optimizer.param_groups):
-                writer.add_scalars('train/lr', {f'param{i}': optimizer.param_groups[i]['lr']}, epoch)
+        # avr_loss_val = compute_validation_loss(module, validation_dataloader, args, autocast_fn)
+        avr_loss_val = eval_vggsound_validation(module, validation_dataloader, args, viz_dir_template.format('vggsound_val'),
+                                        epoch, tensorboard_path=tensorboard_path, rank=rank)
+        validation_loss_list.append(avr_loss_val)
 
-            ''' Evaluate '''
-            module.train(False)
+        ''' Evaluate '''
+        module.train(False)
 
-            with torch.no_grad():
-                avr_loss_val = compute_validation_loss(module, vggss_dataloader, args, autocast_fn)
-                validation_loss_list.append(avr_loss_val)
+        with torch.no_grad():
 
-                if rank == 0:
+            if rank == 0:
+                loss_per_epoch_dict = dict(
+                    (loss_name, loss / loss_add_count) for loss_name, loss in loss_per_epoch_dict.items())
+                training_consumed_sec += (time.time() - train_start_time_per_epoch)
+
+                writer.add_scalars('train/overall', {'loss': total_loss_per_epopch / loss_add_count}, epoch)
+                writer.add_scalars('train/loss', loss_per_epoch_dict, epoch)
+                for i, param in enumerate(optimizer.param_groups):
+                    writer.add_scalars('train/lr', {f'param{i}': optimizer.param_groups[i]['lr']}, epoch)
+
                     print(f"Training Epoch {epoch}, Loss (train) = {round(avr_loss, 5)}, Loss (val) = {round(avr_loss_val, 5)}")
 
-                viz_dir_template = os.path.join(save_path, 'Visual_results', '{}', model_exp_name, f'epoch{epoch}')
+                    if args.train_data == 'vggss_heard':
+                        result_dict = eval_vggss_agg(module, heard_dataloader, viz_dir_template.format('vggss_heard'),
+                                                    epoch, tensorboard_path=tensorboard_path)
+                        eval_vggss_agg(module, unheard_dataloader, viz_dir_template.format('vggss_unheard'), epoch,
+                                    tensorboard_path=tensorboard_path)
+                    else:
+                        result_dict = eval_vggss_agg(module, vggss_dataloader, viz_dir_template.format('vggss'), epoch,
+                                                    tensorboard_path=tensorboard_path)
+                        eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
+                                        tensorboard_path=tensorboard_path)
+                        eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
+                                        tensorboard_path=tensorboard_path)
+                        eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
+                                        tensorboard_path=tensorboard_path)
+                        eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
+                                        tensorboard_path=tensorboard_path)
+                        eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
+                                        tensorboard_path=tensorboard_path)
 
-                if args.train_data == 'vggss_heard':
-                    result_dict = eval_vggss_agg(module, heard_dataloader, viz_dir_template.format('vggss_heard'),
-                                                 epoch, tensorboard_path=tensorboard_path)
-                    eval_vggss_agg(module, unheard_dataloader, viz_dir_template.format('vggss_unheard'), epoch,
-                                   tensorboard_path=tensorboard_path)
-                else:
-                    result_dict = eval_vggss_agg(module, vggss_dataloader, viz_dir_template.format('vggss'), epoch,
-                                                 tensorboard_path=tensorboard_path)
-                    eval_vggss_agg(module, vggss_dataloader_for_testing_overfitting, viz_dir_template.format('vggss_train_data'), epoch,
-                                                 tensorboard_path=tensorboard_path)
-                    # eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
-                    #                 tensorboard_path=tensorboard_path)
-                    # eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
-                    #                   tensorboard_path=tensorboard_path)
-                    # eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
-                    #                   tensorboard_path=tensorboard_path)
-                    # eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
-                    #                  tensorboard_path=tensorboard_path)
-                    # eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
-                    #                   tensorboard_path=tensorboard_path)
+                save_dir = os.path.join(save_path, 'Train_record', model_exp_name, f'Param_{str(epoch)}.pth')
+                module.save(save_dir)
 
-            save_dir = os.path.join(save_path, 'Train_record', model_exp_name, f'Param_{str(epoch)}.pth')
-            module.save(save_dir)
-            module.train(True)
+                if best_pth_dict['best_AUC'] < result_dict['best_AUC']:
+                    best_pth_dict = result_dict
+                    shutil.copyfile(save_dir, os.path.join(save_path, 'Train_record', model_exp_name, f'Param_best.pth'))
 
-            if best_pth_dict['best_AUC'] < result_dict['best_AUC']:
-                best_pth_dict = result_dict
-                shutil.copyfile(save_dir, os.path.join(save_path, 'Train_record', model_exp_name, f'Param_best.pth'))
+        module.train(True)
 
     writer.close()
 
@@ -397,12 +336,15 @@ if __name__ == "__main__":
     parser.add_argument('--vggss_path', type=str, default='', help='VGGSS dataset directory')
     parser.add_argument('--flickr_path', type=str, default='', help='Flickr dataset directory')
     parser.add_argument('--avs_path', type=str, default='', help='AVSBench dataset directory')
+    parser.add_argument('--vggsound_path', type=str, default='', help='VGGSound dataset directory')
+    parser.add_argument('--local-rank', type=str, default='', help='Rank for distributed train')
 
     args = parser.parse_args()
 
     data_path = {'vggss': args.vggss_path,
                  'flickr': args.flickr_path,
-                 'avs': args.avs_path}
+                 'avs': args.avs_path,
+                 'vggsound': args.vggsound_path}
 
     USE_CUDA = torch.cuda.is_available()
 

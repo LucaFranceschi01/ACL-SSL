@@ -143,6 +143,10 @@ class VGGSSDataset(Dataset):
             torch.Tensor: Audio data.
         """
         audio_file, _ = torchaudio.load(os.path.join(self.audio_path, self.file_list[item] + '.wav'))
+        
+        if audio_file.shape[0] > 1:
+            audio_file = audio_file.mean(dim=0)
+
         audio_file = audio_file.squeeze(0)
 
         # slicing or padding based on set_length
@@ -287,6 +291,10 @@ class ExtendVGGSSDataset(Dataset):
             torch.Tensor: Audio data.
         """
         audio_file, _ = torchaudio.load(os.path.join(self.audio_path, self.audio_files[item]))
+        
+        if audio_file.shape[0] > 1:
+            audio_file = audio_file.mean(dim=0)
+        
         audio_file = audio_file.squeeze(0)
 
         # slicing or padding based on set_length
