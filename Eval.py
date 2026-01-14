@@ -61,7 +61,7 @@ def eval_vggsound_validation(
     # Get placeholder text
     prompt_template, text_pos_at_prompt, prompt_length = get_prompt_template()
 
-    for step, data in enumerate(tqdm(val_dataloader, desc=f"Evaluate VGG-Sound({test_split}) dataset..."), disable=(rank != 0)):
+    for step, data in enumerate(tqdm(val_dataloader, desc=f"Evaluate VGG-Sound({test_split}) dataset...", disable=(rank != 0))):
         images, audios, name = data['images'], data['audios'], data['ids']
 
         # Inference
