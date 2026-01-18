@@ -21,5 +21,4 @@ ms3_data
 
 vggsound*.csv
 
-*.out
-*.err
+outputs/
