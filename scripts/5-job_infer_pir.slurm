@@ -2,11 +2,14 @@
 
 #SBATCH --job-name=infer
 #SBATCH --ntasks 1
-#SBATCH --cpus-per-task 3
-#SBATCH --partition express
+#SBATCH --cpus-per-task 1
+#SBATCH --partition gpu
+#SBATCH --gres=gpu:1
 #SBATCH --output=outputs/slurm-%j.out
 #SBATCH --error=outputs/slurm-%j.err
 #SBATCH --time=0-00:30:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=luca.franceschi01@estudiant.upf.edu
 
 set -e
 
@@ -21,8 +24,6 @@ rsync -avz --exclude-from=myutils/excluded-directories.txt ~/repos/ACL-SSL $SCRA
 
 cd $SCRATCH/ACL-SSL
 
-./Test_PTModels.sh
-# srun Test_PTModels.sh
+./4-test_PTModels.sh
 
-# copiar resultados a $DATA?
 rsync -avz Visual_results $DATA
