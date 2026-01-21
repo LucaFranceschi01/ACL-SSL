@@ -61,7 +61,9 @@ def eval_vggsound_validation(
     # Get placeholder text
     prompt_template, text_pos_at_prompt, prompt_length = get_prompt_template()
 
-    for step, data in enumerate(tqdm(val_dataloader, desc=f"Evaluate VGG-Sound({test_split}) dataset...", disable=(rank != 0))):
+    pbar = tqdm(val_dataloader, desc=f"Validation Epoch [{epoch}/{args.epoch}]", disable=(rank != 0))
+
+    for step, data in enumerate(pbar):
         images, audios, name = data['images'], data['audios'], data['ids']
 
         # Inference
@@ -80,11 +82,6 @@ def eval_vggsound_validation(
 
         loss = torch.sum(torch.stack(list(loss_dict.values())))
 
-        if torch.isnan(loss) or torch.isinf(loss):
-            # skip if loss is nan
-            print('************Training stopped due to inf/nan loss.************')
-            raise ValueError('Loss is NaN or Inf!')
-
         # Visual results
         for j in range(val_dataloader.batch_size):
             seg = out_dict['heatmap'][j:j+1]
@@ -95,6 +92,11 @@ def eval_vggsound_validation(
 
         total_loss_per_epopch += loss.item()
         loss_add_count += 1.0
+
+        avr_loss = total_loss_per_epopch / loss_add_count
+
+        if rank == 0:
+            pbar.set_description(f"Validation Epoch {epoch}, Loss = {round(avr_loss, 5)}")
 
     # Save result
     os.makedirs(result_dir, exist_ok=True)

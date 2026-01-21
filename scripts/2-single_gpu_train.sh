@@ -1,6 +1,9 @@
 #!/bin/bash
 
-export CUDA_VISIBLE_DEVICES="0"
+echo "SLURM_VISIBLE_DEVICES: $SLURM_JOB_GPUS"
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+
+nvidia-smi
 
 DATA="/home/lfranceschi/repos/ACL-SSL"
 

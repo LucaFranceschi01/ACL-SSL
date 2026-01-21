@@ -104,10 +104,10 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
     ''' Get dataloader '''
     # Get Train Dataloader (VGGSS)
     print(data_path_dict['vggsound'])
-    train_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_train_subset', is_train=True,
+    train_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_train', is_train=True,
                                     input_resolution=args.input_resolution)
 
-    validation_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_test_subset', is_train=False,
+    validation_dataset = VGGSoundDataset(data_path_dict['vggsound'], 'vggsound_test', is_train=False,
                                     input_resolution=args.input_resolution)
 
     ''' Create DistributedSampler '''
@@ -265,17 +265,12 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
                 scheduler.step()
 
             avr_loss = total_loss_per_epopch / loss_add_count
+
             if rank == 0:
                 pbar.set_description(f"Training Epoch {epoch}, Loss = {round(avr_loss, 5)}")
 
-            # for obj in gc.get_objects():
-            #     try:
-            #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-            #             print(type(obj), obj.size())
-            #     except:
-            #         pass
-
-            # print(gc.get_stats())
+            if rank == 0:
+                print(gc.get_stats())
 
         if rank == 0:
             train_loss_list.append(float(avr_loss))
@@ -283,70 +278,57 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
         if USE_DDP:
             dist.barrier()
 
+        module.train(False)
+
         viz_dir_template = os.path.join(save_path, 'Visual_results', '{}', model_exp_name, f'epoch{epoch}')
 
+        sampler_validation.set_epoch(epoch) if USE_DDP else None
         avr_loss_val = eval_vggsound_validation(module, validation_dataloader, args, viz_dir_template.format('vggsound_val'),
                                         epoch, tensorboard_path=tensorboard_path, rank=rank)
         validation_loss_list.append(avr_loss_val)
 
-        ''' Evaluate '''
-        module.train(False)
+        if USE_DDP:
+            dist.barrier()
 
-        with torch.no_grad():
+        if USE_CUDA:
+            torch.cuda.empty_cache()
 
-            if rank == 0:
-                loss_per_epoch_dict = dict(
-                    (loss_name, loss / loss_add_count) for loss_name, loss in loss_per_epoch_dict.items())
-                training_consumed_sec += (time.time() - train_start_time_per_epoch)
+        gc.collect()
 
-                writer.add_scalars('train/overall', {'loss': total_loss_per_epopch / loss_add_count}, epoch)
-                writer.add_scalars('train/loss', loss_per_epoch_dict, epoch)
-                for i, param in enumerate(optimizer.param_groups):
-                    writer.add_scalars('train/lr', {f'param{i}': optimizer.param_groups[i]['lr']}, epoch)
+    ''' Evaluate '''
+    with torch.no_grad():
 
-                    print(f"Training Epoch {epoch}, Loss (train) = {round(avr_loss, 5)}, Loss (val) = {round(avr_loss_val, 5)}")
+        if rank == 0:
+            loss_per_epoch_dict = dict(
+                (loss_name, loss / loss_add_count) for loss_name, loss in loss_per_epoch_dict.items())
+            training_consumed_sec += (time.time() - train_start_time_per_epoch)
 
-                    if args.train_data == 'vggss_heard':
-                        # result_dict = eval_vggss_agg(module, heard_dataloader, viz_dir_template.format('vggss_heard'),
-                        #                             epoch, tensorboard_path=tensorboard_path)
-                        # eval_vggss_agg(module, unheard_dataloader, viz_dir_template.format('vggss_unheard'), epoch,
-                        #             tensorboard_path=tensorboard_path)
-                        pass
-                    else:
-                        # result_dict = eval_vggss_agg(module, vggss_dataloader, viz_dir_template.format('vggss'), epoch,
-                        #                             tensorboard_path=tensorboard_path)
-                        # eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
-                        #                 tensorboard_path=tensorboard_path)
-                        # eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
-                        #                 tensorboard_path=tensorboard_path)
-                        # eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
-                        #                 tensorboard_path=tensorboard_path)
-                        # eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
-                        #                 tensorboard_path=tensorboard_path)
-                        # eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
-                        #                 tensorboard_path=tensorboard_path)
-                        pass
+            writer.add_scalars('train/overall', {'loss': total_loss_per_epopch / loss_add_count}, epoch)
+            writer.add_scalars('train/loss', loss_per_epoch_dict, epoch)
+            for i, param in enumerate(optimizer.param_groups):
+                writer.add_scalars('train/lr', {f'param{i}': optimizer.param_groups[i]['lr']}, epoch)
 
-                # save_dir = os.path.join(save_path, 'Train_record', model_exp_name, f'Param_{str(epoch)}.pth')
-                # module.save(save_dir)
+            eval_flickr_agg(module, flickr_dataloader, viz_dir_template.format('flickr'), epoch,
+                            tensorboard_path=tensorboard_path)
+            eval_exflickr_agg(module, exflickr_dataloader, viz_dir_template.format('exflickr'), epoch,
+                            tensorboard_path=tensorboard_path)
+            eval_avsbench_agg(module, avsms3_dataloader, viz_dir_template.format('ms3'), epoch,
+                            tensorboard_path=tensorboard_path)
+            result_dict = eval_vggss_agg(module, vggss_dataloader, viz_dir_template.format('vggss'), epoch,
+                                        tensorboard_path=tensorboard_path)
+            eval_exvggss_agg(module, exvggss_dataloader, viz_dir_template.format('exvggss'), epoch,
+                            tensorboard_path=tensorboard_path)
 
-                # if best_pth_dict['best_AUC'] < result_dict['best_AUC']:
-                #     best_pth_dict = result_dict
-                #     shutil.copyfile(save_dir, os.path.join(save_path, 'Train_record', model_exp_name, f'Param_best.pth'))
+            save_dir = os.path.join(save_path, 'Train_record', model_exp_name, f'Param_{str(epoch)}.pth')
+            module.save(save_dir)
 
-        module.train(True)
+            if best_pth_dict['best_AUC'] < result_dict['best_AUC']:
+                best_pth_dict = result_dict
+                shutil.copyfile(save_dir, os.path.join(save_path, 'Train_record', model_exp_name, f'Param_best.pth'))
 
-        # if USE_CUDA:
-        #     torch.cuda.empty_cache()
-
-        # gc.collect()
-
-        # for obj in gc.get_objects():
-        #     try:
-        #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-        #             print(type(obj), obj.size())
-        #     except:
-        #         pass
+        if rank == 1 or not USE_DDP:
+            eval_avsbench_agg(module, avss4_dataloader, viz_dir_template.format('s4'), epoch,
+                            tensorboard_path=tensorboard_path)
 
     writer.close()
 
