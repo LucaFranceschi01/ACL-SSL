@@ -1,0 +1,22 @@
+Bootstrap: docker
+From: continuumio/miniconda3:25.3.1-1
+
+%files
+    /home/lukovsky/repos/ACL-SSL/environment.yaml /home/environment.yaml
+
+%environment
+    export ENV_YAML_PATH=/home/environment.yaml
+    export ENV_NAME=$(head -1 $ENV_YAML_PATH | cut -d ' ' -f2)
+
+%post
+    ENV_YAML_PATH=/home/environment.yaml
+    ENV_NAME=$(head -1 $ENV_YAML_PATH | cut -d ' ' -f2)
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
+    echo "conda activate $ENV_NAME" >> $SINGULARITY_ENVIRONMENT
+
+    . /opt/conda/etc/profile.d/conda.sh
+    conda env create -f $ENV_YAML_PATH -p /opt/conda/envs/$ENV_NAME
+    conda clean --all
+
+%runscript
+    exec "$@"

@@ -24,3 +24,5 @@ vggsound*.csv
 outputs/
 
 **tmp**
+
+*.sif
