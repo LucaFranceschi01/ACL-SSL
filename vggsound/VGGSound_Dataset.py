@@ -10,9 +10,11 @@ import csv
 import json
 from typing import Dict, List, Optional, Union
 
+from util import AddRandomNoise, RandomApply
+
 class VGGSoundDataset(Dataset):
     def __init__(self, data_path: str, split: str, is_train: bool = True, set_length: int = 10,
-                 input_resolution: int = 224, hard_aug: bool = False):
+                 input_resolution: int = 224, hard_aug: bool = False, noise_transform: bool = False):
         """
         Initialize VGG-Sound Dataset.
 
@@ -50,6 +52,14 @@ class VGGSoundDataset(Dataset):
 
         ''' Transform '''
         if is_train:
+            # since at.AddNoise is not a thing in torchaudio 0.13.0
+            if noise_transform:
+                self.audio_transform = RandomApply([
+                    AddRandomNoise(torch.Tensor([10.0]))
+                ], 0.5)
+            else:
+                self.audio_transform = RandomApply(None, -1.0) # nothing essentially
+
             self.image_transform = vt.Compose([
                 vt.Resize((int(input_resolution * 1.1), int(input_resolution * 1.1)), vt.InterpolationMode.BICUBIC),
                 vt.ToTensor(),
@@ -61,13 +71,14 @@ class VGGSoundDataset(Dataset):
                 self.image_transform = vt.Compose([
                     vt.RandomResizedCrop((input_resolution, input_resolution)),
                     vt.RandomApply([vt.GaussianBlur(5, [.1, 2.])], p=0.8),
-                    vt.RandomApply([vt.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+                    # vt.RandomApply([vt.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
                     vt.RandomGrayscale(p=0.2),
                     vt.ToTensor(),
                     vt.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),  # CLIP
                     vt.RandomHorizontalFlip(),
                 ])
         else:
+            self.audio_transform = RandomApply(None, -1.0) # nothing essentially
             self.image_transform = vt.Compose([
                 vt.Resize((input_resolution, input_resolution), vt.InterpolationMode.BICUBIC),
                 vt.ToTensor(),
@@ -149,7 +160,7 @@ class VGGSoundDataset(Dataset):
         label = self.label_dict[self.file_list[item]].replace('_', ' ')
 
         ''' Transform '''
-        audio = audio_file if self.set_length != 0 else None
+        audio = self.audio_transform(audio_file) if self.set_length != 0 else None
         image = self.image_transform(image_file) if self.use_image else None
 
         out = {'images': image, 'audios': audio, 'labels': label, 'ids': file_id}

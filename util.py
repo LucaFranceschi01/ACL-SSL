@@ -65,3 +65,172 @@ def seed_worker(worker_id: int) -> None:
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
+
+'''
+Backported from TorchAudio (torchaudio.functional.add_noise)
+Source: https://github.com/pytorch/audio/blob/e284e58c83f69c95a7f4a8a7d402f6c27ef56f5d/src/torchaudio/functional/functional.py#L2317
+
+Copyright (c) 2017 Facebook Inc. (Soumith Chintala)
+Licensed under the BSD 2-Clause License.
+Reason: Version compatibility for torchaudio==0.13.0
+'''
+def add_noise(
+    waveform: torch.Tensor, noise: torch.Tensor, snr: torch.Tensor, lengths: Optional[torch.Tensor] = None
+) -> torch.Tensor:
+    r'''Scales and adds noise to waveform per signal-to-noise ratio.
+
+    Specifically, for each pair of waveform vector :math:`x \in \mathbb{R}^L` and noise vector
+    :math:`n \in \mathbb{R}^L`, the function computes output :math:`y` as
+
+    .. math::
+        y = x + a n \, \text{,}
+
+    where
+
+    .. math::
+        a = \sqrt{ \frac{ ||x||_{2}^{2} }{ ||n||_{2}^{2} } \cdot 10^{-\frac{\text{SNR}}{10}} } \, \text{,}
+
+    with :math:`\text{SNR}` being the desired signal-to-noise ratio between :math:`x` and :math:`n`, in dB.
+
+    Note that this function broadcasts singleton leading dimensions in its inputs in a manner that is
+    consistent with the above formulae and PyTorch's broadcasting semantics.
+
+    .. devices:: CPU CUDA
+
+    .. properties:: Autograd TorchScript
+
+    Args:
+        waveform (torch.Tensor): Input waveform, with shape `(..., L)`.
+        noise (torch.Tensor): Noise, with shape `(..., L)` (same shape as ``waveform``).
+        snr (torch.Tensor): Signal-to-noise ratios in dB, with shape `(...,)`.
+        lengths (torch.Tensor or None, optional): Valid lengths of signals in ``waveform`` and ``noise``, with shape
+            `(...,)` (leading dimensions must match those of ``waveform``). If ``None``, all elements in ``waveform``
+            and ``noise`` are treated as valid. (Default: ``None``)
+
+    Returns:
+        torch.Tensor: Result of scaling and adding ``noise`` to ``waveform``, with shape `(..., L)`
+        (same shape as ``waveform``).
+    '''
+
+    if not (waveform.ndim - 1 == noise.ndim - 1 == snr.ndim and (lengths is None or lengths.ndim == snr.ndim)):
+        raise ValueError("Input leading dimensions don't match.")
+
+    L = waveform.size(-1)
+
+    if L != noise.size(-1):
+        raise ValueError(f"Length dimensions of waveform and noise don't match (got {L} and {noise.size(-1)}).")
+
+    # compute scale
+    if lengths is not None:
+        mask = torch.arange(0, L, device=lengths.device).expand(waveform.shape) < lengths.unsqueeze(
+            -1
+        )  # (*, L) < (*, 1) = (*, L)
+        masked_waveform = waveform * mask
+        masked_noise = noise * mask
+    else:
+        masked_waveform = waveform
+        masked_noise = noise
+
+    energy_signal = torch.linalg.vector_norm(masked_waveform, ord=2, dim=-1) ** 2  # (*,)
+    energy_noise = torch.linalg.vector_norm(masked_noise, ord=2, dim=-1) ** 2  # (*,)
+    original_snr_db = 10 * (torch.log10(energy_signal) - torch.log10(energy_noise))
+    scale = 10 ** ((original_snr_db - snr) / 20.0)  # (*,)
+
+    # scale noise
+    scaled_noise = scale.unsqueeze(-1) * noise  # (*, 1) * (*, L) = (*, L)
+
+    return waveform + scaled_noise  # (*, L)
+
+'''
+Modified/Backported from TorchAudio (torchaudio.transforms)
+Source: https://github.com/pytorch/audio/blob/e284e58c83f69c95a7f4a8a7d402f6c27ef56f5d/src/torchaudio/transforms/_transforms.py#L2058
+
+Copyright (c) 2017 Facebook Inc. (Soumith Chintala)
+Licensed under the BSD 2-Clause License.
+Reason: Version compatibility for torchaudio==0.13.0
+'''
+class AddRandomNoise(torch.nn.Module):
+    r'''Scales and adds noise to waveform per signal-to-noise ratio.
+    See :meth:`torchaudio.functional.add_noise` for more details.
+
+    .. devices:: CPU CUDA
+
+    .. properties:: Autograd TorchScript
+    '''
+
+    def __init__(self, snr: torch.Tensor, lengths: Optional[torch.Tensor] = None):
+        r'''
+        Args:
+            snr (torch.Tensor): Signal-to-noise ratios in dB, with shape `(...,)`.
+            lengths (torch.Tensor or None, optional): Valid lengths of signals in ``waveform`` and ``noise``,
+        '''
+        super().__init__()
+
+        self.snr = snr
+        self.lengths = lengths
+
+    def forward(self, waveform: torch.Tensor) -> torch.Tensor:
+        r'''
+        Args:
+            waveform (torch.Tensor): Input waveform, with shape `(..., L)`.
+            with shape `(...,)` (leading dimensions must match those of ``waveform``). If ``None``, all
+            elements in ``waveform`` and ``noise`` are treated as valid. (Default: ``None``)
+
+        Returns:
+            torch.Tensor: Result of scaling and adding ``noise`` to ``waveform``, with shape `(..., L)`
+            (same shape as ``waveform``).
+        '''
+        noise = torch.clip(torch.randn(waveform.shape), min=-1., max=1.)
+        return add_noise(waveform, noise, self.snr, self.lengths) # slightly changed
+
+'''
+Useful implementation for randomly applying transforms :)
+Source: https://github.com/Spijkervet/torchaudio-augmentations/blob/891b3b6e19551c211e7cdab36376c7e67e9d199c/torchaudio_augmentations/apply.py#L34
+
+Copyright (c) 2021 Janne Spijkervet
+Licensed under the MIT License (to my best knowledge)
+'''
+class RandomApply(torch.nn.Module):
+    '''Apply randomly a list of transformations with a given probability.
+
+    .. note::
+        In order to script the transformation, please use ``torch.nn.ModuleList`` as input instead of list/tuple of
+        transforms as shown below:
+
+        >>> transforms = transforms.RandomApply(torch.nn.ModuleList([
+        >>>     transforms.ColorJitter(),
+        >>> ]), p=0.3)
+        >>> scripted_transforms = torch.jit.script(transforms)
+
+        Make sure to use only scriptable transformations, i.e. that work with ``torch.Tensor``, does not require
+        `lambda` functions or ``PIL.Image``.
+
+    Args:
+        transforms (list or tuple or torch.nn.Module): list of transformations
+        p (float): probability
+    '''
+    def __init__(self, transforms, p=0.5):
+        super().__init__()
+        self.transforms = transforms
+        self.p = p
+
+    def forward(self, tensor):
+        if self.p < torch.rand(1):
+            return tensor
+        for t in self.transforms:
+            tensor = t(tensor)
+        return tensor
+
+    def __repr__(self):
+        format_string = self.__class__.__name__ + "("
+        format_string += "\n    p={}".format(self.p)
+        for t in self.transforms:
+            format_string += "\n"
+            format_string += "    {0}".format(t)
+        format_string += "\n)"
+        return format_string
+
+'''
+If applying more audio transforms with different probability each will need also this
+https://github.com/Spijkervet/torchaudio-augmentations/blob/891b3b6e19551c211e7cdab36376c7e67e9d199c/torchaudio_augmentations/compose.py#L4
+'''

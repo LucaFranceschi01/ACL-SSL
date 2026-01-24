@@ -26,3 +26,7 @@ outputs/
 **tmp**
 
 *.sif
+
+.acl-ssl2
+
+__pycache__
