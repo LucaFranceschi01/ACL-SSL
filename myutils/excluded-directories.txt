@@ -20,4 +20,4 @@ Train_record*
 
 **tmp**
 
-*.sif
+__pycache__

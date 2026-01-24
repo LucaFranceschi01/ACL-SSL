@@ -357,7 +357,7 @@ if __name__ == "__main__":
     parser.add_argument('--flickr_path', type=str, default='', help='Flickr dataset directory')
     parser.add_argument('--avs_path', type=str, default='', help='AVSBench dataset directory')
     parser.add_argument('--vggsound_path', type=str, default='', help='VGGSound dataset directory')
-    parser.add_argument('--local-rank', type=str, default='', help='Rank for distributed train')
+    parser.add_argument('--local_rank', type=str, default='', help='Rank for distributed train')
     parser.add_argument('--san', action='store_true', help='Silence and noise implementation during training')
 
     args = parser.parse_args()

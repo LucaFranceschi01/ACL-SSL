@@ -7,6 +7,8 @@ nvidia-smi
 
 DATA="/home/lfranceschi/repos/ACL-SSL"
 
+cd $DATA
+
 python -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 --master_port 12345 \
 Train_ACL_on_vggsound.py \
 --model_name ACL_ViT16 \

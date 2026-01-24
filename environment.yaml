@@ -57,8 +57,8 @@ dependencies:
       - joblib==1.5.3
       - markdown==3.10.1
       - markupsafe==3.0.3
-      - numpy==2.2.6
-      - opencv-python==4.13.0.90
+      - numpy==1.26.4
+      - opencv-python==4.11.0.86
       - packaging==26.0
       - pillow==12.1.0
       - protobuf==6.33.4
@@ -67,6 +67,7 @@ dependencies:
       - requests==2.32.5
       - scikit-learn==1.7.2
       - scipy==1.15.3
+      - six==1.17.0
       - tensorboard==2.20.0
       - tensorboard-data-server==0.7.2
       - threadpoolctl==3.6.0
