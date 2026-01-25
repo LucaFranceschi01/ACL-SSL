@@ -6,6 +6,7 @@
 #SBATCH --cpus-per-task 4
 #SBATCH --mem-per-cpu 16G
 #SBATCH --gres=gpu:2
+#SBATCH --exclude="node025"
 #SBATCH --output=outputs/slurm-%j.out
 #SBATCH --error=outputs/slurm-%j.err
 #SBATCH --time=2-00:00:00
@@ -15,6 +16,7 @@
 set -e
 
 nvidia-smi
+echo SLURM_JOB_NODELIST=$SLURM_JOB_NODELIST
 
 singularity run --nv --bind /home/lfranceschi/repos/ACL-SSL container.sif \
 /home/lfranceschi/repos/ACL-SSL/scripts/3-distributed_train.sh

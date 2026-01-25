@@ -9,6 +9,8 @@ DATA="/home/lfranceschi/repos/ACL-SSL"
 
 cd $DATA
 
+mkdir -p $DATA/train_outputs/$SLURM_JOBID
+
 python -m torch.distributed.launch --nnodes=1 --nproc_per_node=2 --master_port 12345 \
 Train_ACL_on_vggsound.py \
 --model_name ACL_ViT16 \
@@ -19,5 +21,5 @@ Train_ACL_on_vggsound.py \
 --flickr_path $DATA/Flickr \
 --avs_path $DATA/AVSBench/AVS1 \
 --vggsound_path $DATA/vggsound \
---save_path $DATA \
+--save_path $DATA/train_outputs/$SLURM_JOBID \
 --san

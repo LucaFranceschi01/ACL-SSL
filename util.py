@@ -180,8 +180,11 @@ class AddRandomNoise(torch.nn.Module):
             torch.Tensor: Result of scaling and adding ``noise`` to ``waveform``, with shape `(..., L)`
             (same shape as ``waveform``).
         '''
+        # slightly changed
+        waveform = waveform.unsqueeze(0)
         noise = torch.clip(torch.randn(waveform.shape), min=-1., max=1.)
-        return add_noise(waveform, noise, self.snr, self.lengths) # slightly changed
+        noisy_waveform = add_noise(waveform, noise, self.snr, self.lengths)
+        return noisy_waveform.squeeze(0)
 
 '''
 Useful implementation for randomly applying transforms :)

@@ -38,5 +38,8 @@ if __name__ == "__main__":
 
     rank = 0 if not USE_DDP else None
 
+    print(f'{torch.version.cuda=}')
+    print(f'{torch.__version__=}')
+
     # Run example
     main(args.model_name, args.model_path, args.exp_name, args.train_config, data_path, args.save_path, args.san)
