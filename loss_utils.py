@@ -76,16 +76,13 @@ def acl_f(v_f: torch.Tensor, pred_emb: torch.Tensor, beta: float = 1 / 0.07, **k
     if kwargs.get('san_active', False):
         neg_audios = kwargs.get('neg_audios', None)
         if neg_audios != None:
-            sil_audio, noise_audio = neg_audios.split(1, dim=0) # each one [1, 512] (1, C)
+            # neg_audios has shape [K, C]
+            # b is already broadcasted in the uncommented version
+            # neg_audios = neg_audios.unsqueeze(1).repeat(1, B, 1)
+            # neg_sim = torch.einsum('bnc,kbc->bkn', F.normalize(v_f, dim=2), neg_audios)
+            neg_sim = torch.einsum('bnc,kc->bkn', F.normalize(v_f, dim=2), F.normalize(neg_audios, dim=1)).mean(dim=2)
 
-            sil_audio = F.normalize(sil_audio).repeat(B, 1)
-            noise_audio = F.normalize(noise_audio).repeat(B, 1)
-
-            # from bn average to have bx1
-            sil_sim = torch.einsum('bnc,bc->bn', F.normalize(v_f, dim=2), sil_audio).mean(dim=1, keepdim=True)
-            noise_sim = torch.einsum('bnc,bc->bn', F.normalize(v_f, dim=2), noise_audio).mean(dim=1, keepdim=True)
-
-            logits = torch.cat((logits, sil_sim, noise_sim), dim=1)
+            logits = torch.cat((logits, neg_sim), dim=1)
 
     labels = torch.arange(B).long().to(pred_emb.device)
 

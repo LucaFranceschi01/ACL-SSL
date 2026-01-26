@@ -17,7 +17,7 @@ from vggsound.VGGSound_Dataset import VGGSoundDataset
 from torch.cuda.amp import autocast, GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from importlib import import_module
-from Eval import eval_vggss_agg, eval_avsbench_agg, eval_flickr_agg, eval_exvggss_agg, eval_exflickr_agg, eval_vggsound_validation
+from Eval import *
 from contextlib import nullcontext
 
 import torch.distributed as dist
@@ -28,21 +28,7 @@ import numpy as np
 
 import gc
 
-def get_silence_noise_audios(module, train_dataset):
-
-    first_audio = train_dataset[0]['audios']
-    negative_audios = torch.stack((torch.zeros_like(first_audio),
-                                 torch.clip(torch.randn(first_audio.shape), min=-1., max=1.)), dim=0)
-
-    prompt_template, text_pos_at_prompt, prompt_length = get_prompt_template()
-    placeholder_tokens = module.get_placeholder_token(prompt_template.replace('{}', ''))
-    placeholder_tokens = placeholder_tokens.repeat((2, 1))
-
-    with torch.no_grad():
-        neg_audios_embedded = module.encode_audio(negative_audios.to(module.device),
-                                                  placeholder_tokens, text_pos_at_prompt, prompt_length)
-
-    return neg_audios_embedded.detach() # torch.Size([2, 512])
+from silence_and_noise.silence_and_noise import get_silence_noise_audios
 
 def main(model_name, model_path, exp_name, train_config_name, data_path_dict, save_path, san_active):
     """
@@ -200,7 +186,7 @@ def main(model_name, model_path, exp_name, train_config_name, data_path_dict, sa
     validation_loss_list = []
     train_loss_list = []
 
-    neg_audios = get_silence_noise_audios(module, train_dataset)
+    neg_audios = get_silence_noise_audios(module, train_dataset[0]['audios'].shape, 'silence_and_noise/audio')
 
     if USE_CUDA:
         neg_audios = neg_audios.half()
